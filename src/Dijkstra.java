@@ -1,69 +1,134 @@
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.PriorityQueue;
 
 public class Dijkstra {
 
-    public static void shortestPaths(Graph graph, int source) {
-        int n = graph.vertices;
-        int[] distance = new int[n];
-        int[] previous = new int[n];
+    public static class Result {
+        public final int[] distances;
+        public final int[] previous;
+        public final long operations;
 
-        Arrays.fill(distance, Integer.MAX_VALUE);
-        Arrays.fill(previous, -1);
+        public Result(int[] distances, int[] previous, long operations) {
+            this.distances = distances;
+            this.previous = previous;
+            this.operations = operations;
+        }
+    }
 
-        for (Edge edge : graph.edges) {
-            if (edge.weight < 0) {
-                throw new IllegalArgumentException(
-                        "Dijkstra does not support negative weights");
-            }
+    public static Result compute(Graph graph, int source) {
+        if (source < 0 || source >= graph.vertices) {
+            throw new IllegalArgumentException("Invalid source vertex");
         }
 
-        distance[source] = 0;
+        int[] distances = new int[graph.vertices];
+        int[] previous = new int[graph.vertices];
+
+        Arrays.fill(distances, Integer.MAX_VALUE);
+        Arrays.fill(previous, -1);
+
+        distances[source] = 0;
 
         PriorityQueue<int[]> queue = new PriorityQueue<>(
-                Comparator.comparingInt(a -> a[1]));
+                (a, b) -> Integer.compare(a[1], b[1])
+        );
 
-        queue.add(new int[]{source, 0});
+        queue.offer(new int[]{source, 0});
+
+        long operations = 0;
 
         while (!queue.isEmpty()) {
             int[] current = queue.poll();
-            int vertex = current[0];
-            int currentDistance = current[1];
 
-            if (currentDistance != distance[vertex]) {
+            int vertex = current[0];
+            int distance = current[1];
+
+            operations++;
+
+            if (distance != distances[vertex]) {
                 continue;
             }
 
             for (Edge edge : graph.adjacencyList.get(vertex)) {
-                int newDistance = distance[vertex] + edge.weight;
+                operations++;
 
-                if (newDistance < distance[edge.to]) {
-                    distance[edge.to] = newDistance;
+                if (edge.weight < 0) {
+                    throw new IllegalArgumentException(
+                            "Dijkstra does not support negative weights"
+                    );
+                }
+
+                if (distances[vertex] != Integer.MAX_VALUE
+                        && distances[vertex] + edge.weight < distances[edge.to]) {
+
+                    distances[edge.to] = distances[vertex] + edge.weight;
                     previous[edge.to] = vertex;
-                    queue.add(new int[]{edge.to, newDistance});
+
+                    queue.offer(new int[]{
+                            edge.to,
+                            distances[edge.to]
+                    });
                 }
             }
         }
 
-        for (int i = 0; i < n; i++) {
-            if (distance[i] == Integer.MAX_VALUE) {
-                System.out.println(i + ": unreachable");
-            } else {
-                System.out.println(i + ": distance = "
-                        + distance[i] + ", path = "
-                        + getPath(previous, i));
-            }
-        }
+        return new Result(distances, previous, operations);
     }
 
-    private static List<Integer> getPath(int[] previous, int vertex) {
+    public static List<Integer> getPath(
+            int source,
+            int target,
+            int[] previous
+    ) {
         List<Integer> path = new ArrayList<>();
 
-        while (vertex != -1) {
-            path.add(vertex);
-            vertex = previous[vertex];
+        if (target < 0 || target >= previous.length) {
+            throw new IllegalArgumentException("Invalid target vertex");
+        }
+
+        int current = target;
+
+        while (current != -1) {
+            path.add(current);
+
+            if (current == source) {
+                break;
+            }
+
+            current = previous[current];
+        }
+
+        if (path.get(path.size() - 1) != source) {
+            return Collections.emptyList();
         }
 
         Collections.reverse(path);
         return path;
+    }
+
+    public static void shortestPaths(Graph graph, int source) {
+        Result result = compute(graph, source);
+
+        for (int vertex = 0; vertex < graph.vertices; vertex++) {
+            if (result.distances[vertex] == Integer.MAX_VALUE) {
+                System.out.println(
+                        "Vertex " + vertex + ": unreachable"
+                );
+            } else {
+                List<Integer> path = getPath(
+                        source,
+                        vertex,
+                        result.previous
+                );
+
+                System.out.println(
+                        "Vertex " + vertex
+                                + ", distance = " + result.distances[vertex]
+                                + ", path = " + path
+                );
+            }
+        }
     }
 }
